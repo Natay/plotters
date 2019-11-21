@@ -1,125 +1,110 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
+import csv
 
 
-def get_segs_count(data_dict):
+def stacked_horizontal_barplot(results):
+    """
+    """
+    labels = list(results.keys())
 
-    max_nsegs = 0
-    for d in data_dict:
-        nsegs = len(data_dict[d]['segs'])
-        if max_nsegs < nsegs:
-            max_nsegs = nsegs
+    data = []
+    # Parse the numerical values to plot.
+    for x in results:
+        d = [int(v.split(':')[0]) for v in results[x]]
+        data.append(d)
 
-    return max_nsegs
+    data = np.array(data)
 
+    data_cum = data.cumsum(axis=1)
 
-def plot():
-    people = ('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H')
-    segments = 9
+    fig, ax = plt.subplots(figsize=(190.2, 5))
+    ax.invert_yaxis()
+    ax.xaxis.set_visible(False)
+    ax.set_xlim(0, np.sum(data, axis=1).max())
 
-    # generate some multi-dimensional data & arbitrary labels
-    data = 3 + 10 * np.random.rand(segments, len(people))
-    percentages = (np.random.randint(5, 20, (len(people), segments)))
-    y_pos = np.arange(len(people))
+    for res in results:
+        # Get the list of segments to plot
+        vals = results[res]
+        # Compute the sum of all segments to use for percentages.
+        total = sum([int(v.split(':')[0]) for v in vals if v.split(':')[-1] != 'white'])
+        for i, p in enumerate(vals):
+            # Get the label name, and color of each segment
+            _, _, name, color = p.split(':')
 
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111)
+            widths = data[:, i]
+            # Ensure no overlap with previous segment
+            starts = data_cum[:, i] - widths
+            # Plot the segment
+            ax.barh(labels, widths, left=starts,  height=0.5, color=color)
 
-    colors = 'rgbwmc'
-    patch_handles = []
-    left = np.zeros(len(people))  # left alignment of data starts at zero
-    for i, d in enumerate(data):
-        patch_handles.append(ax.barh(y_pos, d,
-                                     color=colors[i % len(colors)], align='center',
-                                     left=left))
-        # accumulate the left-hand offsets
-        left += d
+            # Center label text.
+            xcenters = starts + widths / 2
 
-    # go through all of the bar segments and annotate
-    for j in range(len(patch_handles)):
-        for i, patch in enumerate(patch_handles[j].get_children()):
-            bl = patch.get_xy()
-            x = 0.5 * patch.get_width() + bl[0]
-            y = 0.5 * patch.get_height() + bl[1]
-            ax.text(x, y, "%d%%" % (percentages[i, j]), ha='center')
-
-    ax.set_yticks(y_pos)
-    ax.set_yticklabels(people)
-    ax.set_xlabel('Distance')
-
-    plt.show()
-
-
-def horizontal_plot(data_dict):
-
-    # Example data
-    fig, ax = plt.subplots()
-    y_pos = range(len(data_dict))
-    y_labels = data_dict.keys()
-
-    for idx, data in enumerate(data_dict):
-        #left = np.zeros(len(y_pos))
-        segments = data_dict[data]['segs']
-
-        for seg in segments:
-            min_val, max_val, color = seg[0], seg[1], seg[2]
-            xvals = list(range(min_val, max_val))
-            yvals = [idx] * len(xvals)
-            ax.barh(yvals, xvals, align='center', color=color)
-
-    # Plot each segment as a stacked bar.
-        #ax.barh(y_pos, x_vals, align='center')
-    #ax.set_yticks(yvals)
-    #ax.set_yticklabels(y_labels)
-
-    plt.show()
-
-    return
+            # Add labels to segments
+            for y, (x, c) in enumerate(zip(xcenters, widths)):
+                # 'white' segments are a gap.
+                percent = (int(c) / total) * 100
+                percent = "{0:.2f}".format(percent)
+                label = '' if color == 'white' else f"{name}\n( {percent}% )"
+                ax.text(x, y, label, ha='center', va='center',
+                        color='black', rotation='vertical', fontsize=9)
+    return fig, ax
 
 
-def pandas_hplot():
-    df2 = pd.DataFrame([[1, 2, 3, 1],
-                        [1, 21, 4, 3],
-                        [1, 3, 22, 10],
-                        [1, 2, 3, 4]
-                        ], columns=['a', 'b', 'c', 'd'])
-    df2.plot.barh(stacked=True)
-    plt.show()
-    return
+def determine_gap(current_store, start):
+    """
+    Determine the gap between previous end and current start
+    """
+    gap = ''
+    if not current_store:
+        return gap
+
+    # Get the previous data values.
+    previous = current_store[-1].split(':')
+    previous_diff, previous_end, previous_name, color = previous
+    previous_diff, previous_end = int(previous_diff), int(previous_end)
+
+    if previous_end != start:
+        # The size of the gap will be proportional to the difference between the current
+        # start and previous end.
+        gap_diff = start - previous_end
+        gap = f"{gap_diff}:::white"
+
+    return gap
 
 
 def parse_data(fname):
-    """Parse file and return a data dict."""
-
-    stream = open(fname, 'r')
+    """
+    Parse file and return a data dict.
+    """
 
     data_dict = dict()
-    for line in stream:
-        line = line.strip().replace(' ', '')
-        # Parse the y_value, the particular segment, and actual color used
-        y_val, segments, color = line.split(',')
+    file_stream = open(fname, 'r')
+    csvreader = csv.reader(file_stream, delimiter='\t')
 
-        segs = data_dict.get(y_val, {}).get('segs', [])
+    colors = 'rgbymc'
+    color_cycle = 0
 
-        min_val, max_val = segments.strip().split('-')
+    # Assumes the data is already sorted.
+    for line in csvreader:
+        y_label, start, end, name, _, plus_minus = line
+        start, end = int(start), int(end)
+        # Get the value to plot
+        diff = end - start
+        current_store = data_dict.get(y_label, [])
+        # Fill in gaps between previous end and current start
+        gap = determine_gap(current_store=current_store, start=start)
+        if gap:
+            current_store.append(gap)
 
-        segs.append((int(min_val), int(max_val), color))
+        color = colors[color_cycle % len(colors)]
+        # Add this segment to data dict.
+        current_store.append(f"{diff}:{end}:{name}:{color}")
 
-        # Sort segments by the minimum values
-        segs.sort(key=lambda x: x[0])
-        # Store in dictionary keyed by y_value
-        data_dict.setdefault(y_val, dict()).update({'segs': segs})
-
-    n_segs = get_segs_count(data_dict)
-
-    for d in data_dict:
-        segs = data_dict[d]['segs']
-        if len(segs) < n_segs:
-            filler = [(0, 0, 'black')] * (n_segs - len(segs))
-            segs += filler
-
-        data_dict[d]['segs'] = segs
+        # Add a black bar between segments
+        data_dict[y_label] = current_store
+        color_cycle += 1
 
     return data_dict
 
@@ -133,13 +118,11 @@ def main():
 
     fname = args.file
 
-    data_dict = parse_data(fname=fname)
+    results = parse_data(fname=fname)
 
-    #horizontal_plot(data_dict=data_dict)
-    #plot()
-    pandas_hplot()
+    stacked_horizontal_barplot(results)
 
-    print(fname, "FNAME")
+    plt.show()
 
 
 if __name__ == "__main__":

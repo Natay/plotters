@@ -1,5 +1,10 @@
-n1, 1-100, red
-n1, 200-300, blue
-n1, 10-30, green
-n2, 1-5, blue
-n2, 50-200, pink
+chr1	0	21491	chr6_BT_minus	.	-
+chr1	22271	37238	chr6_BT_minus	.	-
+chr1	39667	71110	chr6_BT_minus	.	-
+chr1	104532	115103	chr6_BT_minus	.	-
+chr1	163563	174564	chr6_BT_minus	.	-
+chr1	222813	233061	chr6_BT_minus	.	-
+chr1	233665	253800	chr6_BT_minus	.	-
+chr1	287713	323496	chr6_BT_minus	.	-
+chr1	333444	347982	chr6_BT_minus	.	-
+chr1	395571	408046	chr6_BT_minus	.	-
