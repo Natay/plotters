@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
+import random
 
 
 def stacked_horizontal_barplot(results):
@@ -18,37 +19,34 @@ def stacked_horizontal_barplot(results):
 
     data_cum = data.cumsum(axis=1)
 
-    fig, ax = plt.subplots(figsize=(190.2, 5))
+    fig, ax = plt.subplots(figsize=(19.2, 5))
     ax.invert_yaxis()
+    plt.subplots_adjust(right=.83)
+
     ax.xaxis.set_visible(False)
     ax.set_xlim(0, np.sum(data, axis=1).max())
+    category_names = set()
 
     for res in results:
         # Get the list of segments to plot
         vals = results[res]
         # Compute the sum of all segments to use for percentages.
-        total = sum([int(v.split(':')[0]) for v in vals if v.split(':')[-1] != 'white'])
         for i, p in enumerate(vals):
             # Get the label name, and color of each segment
             _, _, name, color = p.split(':')
-
             widths = data[:, i]
             # Ensure no overlap with previous segment
             starts = data_cum[:, i] - widths
             # Plot the segment
-            ax.barh(labels, widths, left=starts,  height=0.5, color=color)
+            if name not in category_names:
+                ax.barh(labels, widths, left=starts,  label=name, height=0.5, color=color)
+            else:
+                ax.barh(labels, widths, left=starts, height=0.5, color=color)
 
-            # Center label text.
-            xcenters = starts + widths / 2
+            category_names.update([name])
 
-            # Add labels to segments
-            for y, (x, c) in enumerate(zip(xcenters, widths)):
-                # 'white' segments are a gap.
-                percent = (int(c) / total) * 100
-                percent = "{0:.2f}".format(percent)
-                label = '' if color == 'white' else f"{name}\n( {percent}% )"
-                ax.text(x, y, label, ha='center', va='center',
-                        color='black', rotation='vertical', fontsize=9)
+    ax.legend(bbox_to_anchor=(1.04,1), loc="upper left")
+
     return fig, ax
 
 
@@ -74,6 +72,23 @@ def determine_gap(current_store, start):
     return gap
 
 
+def get_color(name):
+
+    color_map = dict(chr6_BT_minus='#4fff38', chr6_BT_plus='#03a7ff',
+                     chr8_BT_minus='#0010a3', chr8_BT_plus='#db00d8',
+                     chr4_BT_plus='#9900ff', chr4_BT_minus='#ffff05',
+                     chr11_BT_minus='#8ca61b', chr11_BT_plus='#878787',
+                     chr17_BT_plus='#00f2ff', chr17_BT_minus='#27686b',
+                     chr5_BT_plus='#ffe838', chr5_BT_minus='#8a2c00',
+                     chr27_BT_plus='#9c6d38', chr27_BT_minus='#ff8700',
+                     chr21_BT_plus='#82005d', chr21_BT_minus='#0d0009',
+                     )
+
+    color = color_map.get(name, 'black')
+
+    return color
+
+
 def parse_data(fname):
     """
     Parse file and return a data dict.
@@ -82,9 +97,6 @@ def parse_data(fname):
     data_dict = dict()
     file_stream = open(fname, 'r')
     csvreader = csv.reader(file_stream, delimiter='\t')
-
-    colors = 'rgbymc'
-    color_cycle = 0
 
     # Assumes the data is already sorted.
     for line in csvreader:
@@ -98,13 +110,12 @@ def parse_data(fname):
         if gap:
             current_store.append(gap)
 
-        color = colors[color_cycle % len(colors)]
+        color = get_color(name)
         # Add this segment to data dict.
         current_store.append(f"{diff}:{end}:{name}:{color}")
 
         # Add a black bar between segments
         data_dict[y_label] = current_store
-        color_cycle += 1
 
     return data_dict
 
